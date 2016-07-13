@@ -6,21 +6,12 @@ import code
 import subprocess
 import glob
 
-def deploy_instance(config):
+def deploy_instance(config, conn_args):
   # latest ubuntu ami
   ami_id = config('info', 'ami_id')
 
 
   # define userdata to be run at instance launch
-
-
-
-
-  conn_args = {
-      'aws_access_key_id': 'AKIAIBXC7HPX376YYNXA',
-      'aws_secret_access_key': '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',
-      'region_name': 'us-east-1'
-  }
 
   ec2_res = boto3.resource('ec2', **conn_args)
 
@@ -36,17 +27,13 @@ def deploy_instance(config):
 
 
 
-def populateInstance():
-    conn_args = {
-        'aws_access_key_id': config('info', 'aws_access_key_id'),
-        'aws_secret_access_key': config('info', 'aws_secret_access_key'),
-        'region_name': config('info', 'region_name')
-    }
+def populateInstance(filename, config, conn_args, fileCount):
+
 
     ec2 = boto3.resource('ec2', **conn_args)
 
-    instances = ec2.instances.filter(
-    Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+    code.interact(local=locals())
     for instance in instances:
         instance.wait_until_running()
 
@@ -74,52 +61,39 @@ def populateInstance():
         print s
         p = subprocess.call(s, shell=True)
 
+        instance.terminate()
 
-        code.interact(local=locals())
 
 
-def sendScriptCmd():
-    conn_args = {
-        'aws_access_key_id': 'AKIAIBXC7HPX376YYNXA',
-        'aws_secret_access_key': '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',
-        'region_name': 'us-east-1'
-    }
 
-    ec2 = boto3.resource('ec2', **conn_args)
 
-    instances = ec2.instances.filter(
-    Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
-    for instance in instances:
-        instance.wait_until_running()
-
-        conn_args = {
-            'aws_access_key_id': 'AKIAIBXC7HPX376YYNXA',
-            'aws_secret_access_key': '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',
-            'region_name': 'us-east-1'
-        }
-
-# Reload the instance attributes
-        instance.load()
-        dns = instance.public_dns_name
-        print dns
-        client_ssm = boto3.client("ssm", **conn_args)
-        client_ssm.list_commands()
-        #code.interact(local=locals())
-        print instance.id
-        client_ssm.send_command(InstanceIds=['i-0b209edfcb3870d7a'], DocumentName='AWS-RunShellScript',Parameters={"commands" : ["/home/ec2-user/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ec2-user/batchtest.ilp /home/ec2-user/VCN_subsubsample_crop-10000.tif"]}, TimeoutSeconds=30)
 
 def main():
+    if len(sys.argv) < 3:
+        print "-------------------------------------------------------------"
+        print "ilaws -- a wrapper for AWS for launching ilastik segmentation"
+        print "usage: python ilaws.py [path to directory with input data] [path to ilastik project file]"
+        print "written by michael morehead @ ilastik 2016 workshop"
+        print "-------------------------------------------------------------"
     folderpath = sys.argv[1]
     projectpath = sys.argv[2]
     config = ConfigParser.ConfigParser()
 
+    conn_args = {
+        'aws_access_key_id': config('info', 'aws_access_key_id'),
+        'aws_secret_access_key': config('info', 'aws_secret_access_key'),
+        'region_name': config('info', 'region_name')
+    }
+
 
     l = glob.glob(os.path.join(folderpath, "*"))
 
+    for fileCount, each in l:
+        code.interact(local=locals())
+        deploy_instance(config, conn_args)
+    for fileCount, filename in l:
+        populateInstance(filename, config, conn_args, fileCount)
 
 
-
-
-
-
-populateInstance()
+if __name__ == "__main__":
+    main()
