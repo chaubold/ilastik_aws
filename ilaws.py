@@ -27,10 +27,11 @@ def deploy_instance(config, conn_args):
 
 
 
-def populateInstance(filename, config, conn_args, fileCount):
+def populateInstance(filename, projectpath, config, conn_args, fileCount):
 
 
     ec2 = boto3.resource('ec2', **conn_args)
+
 
     instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
     code.interact(local=locals())
@@ -44,20 +45,21 @@ def populateInstance(filename, config, conn_args, fileCount):
 
 
 
-        s = "scp " + "-i ~/mdm.pem ./exampleset/VCN_subsubsample_crop-10000.tif ubuntu@" + dns + ":/home/ubuntu/VCN_subsubsample_crop-10000.tif"
+        s = "scp " + "-i ~/mdm.pem " + filename + " ubuntu@" + dns + ":" + os.path.basename(filename)
         print s
+
         p = subprocess.call(s, shell=True)
 
 
-        s = "scp " + "-i ~/mdm.pem ./batchtest.ilp ubuntu@" + dns + ":/home/ubuntu/batchtest.ilp"
+        s = "scp " + "-i ~/mdm.pem " + projectpath + " ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(projectpath)
         print s
         p = subprocess.call(s, shell=True)
 
-        s = "ssh -i ~/mdm.pem ubuntu@" + dns +" 'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/batchtest.ilp /home/ubuntu/VCN_subsubsample_crop-10000.tif'"
+        s = "ssh -i ~/mdm.pem ubuntu@" + dns +" 'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename)'"
         print s
         p = subprocess.call(s, shell=True)
 
-        s = "scp " + "-i ~/mdm.pem ubuntu@" + dns + ":/home/ubuntu/ ./batchtest.ilp batchtest.ilp"
+        s = "scp " + "-i ~/mdm.pem ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(filename)[:-4] + "_Probabilities.h5 " + os.path.basename(filename)[:-4] + "_Probabilities.h5"
         print s
         p = subprocess.call(s, shell=True)
 
@@ -71,28 +73,31 @@ def populateInstance(filename, config, conn_args, fileCount):
 def main():
     if len(sys.argv) < 3:
         print "-------------------------------------------------------------"
-        print "ilaws -- a wrapper for AWS for launching ilastik segmentation"
-        print "usage: python ilaws.py [path to directory with input data] [path to ilastik project file]"
-        print "written by michael morehead @ ilastik 2016 workshop"
+        print "ilaws -- a wrapper for AWS for launching ilastik segmentation on the cloud"
+        print "usage: python ilaws.py <path to directory with input data> <path to ilastik project file>"
+        print "written by michael morehead @ ilastik workshop 2016"
         print "-------------------------------------------------------------"
+        sys.exit()
     folderpath = sys.argv[1]
     projectpath = sys.argv[2]
     config = ConfigParser.ConfigParser()
+    config.read("./config.ini")
 
     conn_args = {
-        'aws_access_key_id': config('info', 'aws_access_key_id'),
-        'aws_secret_access_key': config('info', 'aws_secret_access_key'),
-        'region_name': config('info', 'region_name')
+        'aws_access_key_id': config.get('info', 'aws_access_key_id'),
+        'aws_secret_access_key': config.get('info', 'aws_secret_access_key'),
+        'region_name': config.get('info', 'region_name')
     }
 
 
-    l = glob.glob(os.path.join(folderpath, "*"))
 
-    for fileCount, each in l:
+    l = glob.glob(os.path.join(folderpath, "*"))
+    print "starting " + str(len(l)) + " instances"
+    for fileCount, each in enumerate(l):
         code.interact(local=locals())
         deploy_instance(config, conn_args)
-    for fileCount, filename in l:
-        populateInstance(filename, config, conn_args, fileCount)
+    for fileCount, filename in enumerate(l):
+        populateInstance(filename, projectpath, config, conn_args, fileCount)
 
 
 if __name__ == "__main__":
