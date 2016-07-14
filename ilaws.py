@@ -8,7 +8,7 @@ import glob
 
 def deploy_instance(config, conn_args):
   # latest ubuntu ami
-  ami_id = config('info', 'ami_id')
+  ami_id = config.get('info', 'ami_id')
 
 
   # define userdata to be run at instance launch
@@ -19,51 +19,43 @@ def deploy_instance(config, conn_args):
       ImageId=ami_id,
       MinCount=1,
       MaxCount=1,
-      KeyName = config('info', 'ami_id'),
-      InstanceType=config('info', 'instancetype'),
-      SecurityGroups=[config('info', 'securitygroup')]
+      KeyName = config.get('info', 'keyname'),
+      InstanceType=config.get('info', 'instancetype'),
+      SecurityGroups=[config.get('info', 'securitygroup')]
       )
 
 
 
 
-def populateInstance(filename, projectpath, config, conn_args, fileCount):
+def runInstance(filename, projectpath, config, conn_args, instance):
 
-
-    ec2 = boto3.resource('ec2', **conn_args)
-
-
-    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
-    code.interact(local=locals())
-    for instance in instances:
-        instance.wait_until_running()
 
 # Reload the instance attributes
-        instance.load()
-        dns = instance.public_dns_name
-        print dns
+    instance.load()
+    dns = instance.public_dns_name
+    print dns
 
 
 
-        s = "scp " + "-i ~/mdm.pem " + filename + " ubuntu@" + dns + ":" + os.path.basename(filename)
-        print s
+    s = "scp " + "-oStrictHostKeyChecking=no -i ~/mdm.pem " + filename + " ubuntu@" + dns + ":" + os.path.basename(filename)
+    print s
 
-        p = subprocess.call(s, shell=True)
+    p = subprocess.call(s, shell=True)
 
 
-        s = "scp " + "-i ~/mdm.pem " + projectpath + " ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(projectpath)
-        print s
-        p = subprocess.call(s, shell=True)
+    s = "scp " + "-oStrictHostKeyChecking=no -i ~/mdm.pem " + projectpath + " ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(projectpath)
+    print s
+    p = subprocess.call(s, shell=True)
 
-        s = "ssh -i ~/mdm.pem ubuntu@" + dns +" 'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename)'"
-        print s
-        p = subprocess.call(s, shell=True)
+    s = "ssh -oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns +" \'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename) +"\'"
+    print s
+    p = subprocess.call(s, shell=True)
 
-        s = "scp " + "-i ~/mdm.pem ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(filename)[:-4] + "_Probabilities.h5 " + os.path.basename(filename)[:-4] + "_Probabilities.h5"
-        print s
-        p = subprocess.call(s, shell=True)
+    s = "scp " + "-oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(filename)[:-4] + "_Probabilities.h5 " + os.path.basename(filename)[:-4] + "_Probabilities.h5"
+    print s
+    p = subprocess.call(s, shell=True)
 
-        instance.terminate()
+    instance.terminate()
 
 
 
@@ -94,10 +86,32 @@ def main():
     l = glob.glob(os.path.join(folderpath, "*"))
     print "starting " + str(len(l)) + " instances"
     for fileCount, each in enumerate(l):
-        code.interact(local=locals())
+        print fileCount
         deploy_instance(config, conn_args)
-    for fileCount, filename in enumerate(l):
-        populateInstance(filename, projectpath, config, conn_args, fileCount)
+    fileCount +=1
+
+    ec2 = boto3.resource('ec2', **conn_args)
+
+
+    instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+
+    count = 0
+    print "waiting for instances to spawn..."
+    while(count < fileCount):
+        count = 0
+
+        for instance in instances:
+            count += 1
+
+    print "instances ready, sending data!"
+
+    instanceFileDict = {}
+
+    for ii, instance in enumerate(instances):
+        instanceFileDict[l[ii]] = instance
+
+    for filename in l:
+        runInstance(filename, projectpath, config, conn_args, instanceFileDict[filename])
 
 
 if __name__ == "__main__":
