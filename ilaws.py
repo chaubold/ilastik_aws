@@ -45,7 +45,7 @@ def runInstance(filename, projectpath, config, conn_args, instance):
 
     s = "scp " + "-oStrictHostKeyChecking=no -i ~/mdm.pem " + projectpath + " ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(projectpath)
     print s
-    p = subprocess.call(s, shell=True)
+    #p = subprocess.call(s, shell=True)
 
     s = "ssh -oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns +" \'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename) +"\'"
     print s
