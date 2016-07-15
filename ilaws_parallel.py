@@ -7,6 +7,7 @@ import subprocess
 import shlex
 import glob
 import Queue, thread
+import time
 
 def deploy_instance(config, conn_args):
   # latest ubuntu ami
@@ -48,12 +49,28 @@ def loadFiles(config, conn_args, instanceFileDict):
         args = shlex.split(s)
         print args
         p = subprocess.Popen(args)
-        thread.start_new_thread(process_waiter, (p, filename + " finished copying...", results))
+        thread.start_new_thread(process_waiter, (p, filename, results))
+
         process_count +=1
+        time.sleep(2)
 
     while process_count > 0:
         description, rc= results.get()
         print "job", description, "ended with rc =", rc
+        if rc != 0:
+            instance = instanceFileDict[description]
+            instance.wait_until_running()
+        # Reload the instance attributes
+            instance.load()
+            dns = instance.public_dns_name
+            print dns
+            s = "scp " + "-B -oStrictHostKeyChecking=no -i ~/mdm.pem " + filename + " ubuntu@" + dns + ":" + os.path.basename(filename)
+            print s
+            args = shlex.split(s)
+            print args
+            p = subprocess.Popen(args)
+            thread.start_new_thread(process_waiter, (p, filename, results))
+            process_count +=1
         process_count-= 1
 
 
@@ -93,17 +110,32 @@ def triggerIlastik(filename, projectpath, instanceFileDict):
         dns = instance.public_dns_name
         print dns
 
-        s = "ssh -i ~/mdm.pem ubuntu@" + dns +" \'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename)+ "\'"
+        s = "ssh -B -oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns +" \'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename)+ "\'"
         print s
         args = shlex.split(s)
         print args
         p = subprocess.Popen(args)
-        thread.start_new_thread(process_waiter, (p, str(instanceFileDict[filename]) + " ilastik run triggered...", results))
+        thread.start_new_thread(process_waiter, (p, filename, results))
         process_count += 1
+        time.sleep(1)
 
     while process_count > 0:
         description, rc= results.get()
         print "job", description, "ended with rc =", rc
+        if rc != 0:
+            instance = instanceFileDict[description]
+            instance.wait_until_running()
+        # Reload the instance attributes
+            instance.load()
+            dns = instance.public_dns_name
+            print dns
+            s = "ssh -B -oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns +" \'export LAZYFLOW_TOTAL_RAM_MB=950; /home/ubuntu/ilastik-1.2.0rc6-Linux/run_ilastik.sh --headless --project=/home/ubuntu/" + os.path.basename(projectpath) + " /home/ubuntu/" + os.path.basename(filename)+ "\'"
+            print s
+            args = shlex.split(s)
+            print args
+            p = subprocess.Popen(args)
+            thread.start_new_thread(process_waiter, (p, filename, results))
+            process_count +=1
         process_count-= 1
 
 def retrieveSegmentations(filename, instanceFileDict):
@@ -123,12 +155,26 @@ def retrieveSegmentations(filename, instanceFileDict):
         args = shlex.split(s)
         print args
         p = subprocess.Popen(args)
-        thread.start_new_thread(process_waiter, (p, filename + " pulling segmentation...", results))
+        thread.start_new_thread(process_waiter, (p, filename, results))
         process_count += 1
 
     while process_count > 0:
         description, rc= results.get()
         print "job", description, "ended with rc =", rc
+        if rc != 0:
+            instance = instanceFileDict[description]
+            instance.wait_until_running()
+        # Reload the instance attributes
+            instance.load()
+            dns = instance.public_dns_name
+            print dns
+            s = "scp " + "-B -oStrictHostKeyChecking=no -i ~/mdm.pem ubuntu@" + dns + ":/home/ubuntu/" + os.path.basename(filename)[:-4] + "_Probabilities.h5 " + os.path.basename(filename)[:-4] + "_Probabilities.h5"
+            print s
+            args = shlex.split(s)
+            print args
+            p = subprocess.Popen(args)
+            thread.start_new_thread(process_waiter, (p, filename, results))
+            process_count +=1
         process_count-= 1
 
     for filename in instanceFileDict:
@@ -243,7 +289,7 @@ def main():
 
 
 
-    loadFiles(config, conn_args, instanceFileDict)
+    instanceFileDict = loadFiles(config, conn_args, instanceFileDict)
 
     #loadProjectFiles(projectpath, config, conn_args, instanceFileDict)
 
