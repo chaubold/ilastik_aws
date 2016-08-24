@@ -40,6 +40,7 @@ def main():
     except botocore.exception.ClientError:
         print("Could not purge message queues, might not have waited 60 seconds in between")
     
+    # WARNING: the signature_version needs to be adjusted for eu-central-1, no idea whether that also works for us
     s3 = boto3.client('s3', config=Config(signature_version='s3v4'), **conn_args)
 
     # upload ilastik project file as zip
@@ -100,7 +101,7 @@ def main():
 
                 # download file and remove from s3
                 try:
-                    s3.download_file(bucketName, resultFileKey, 'result_' + filename)
+                    s3.download_file(bucketName, resultFileKey, os.path.join(folderPath, 'result_' + filename))
                     s3.delete_object(Bucket=bucketName, Key=resultFileKey)
                     message.delete()
                 except botocore.exceptions.ClientError:

@@ -16,11 +16,12 @@ if __name__ == "__main__":
     bucketName = config.get('info', 'bucket')
 
     # set up queues
-    sqs = boto3.resource('sqs', region_name='eu-central-1')
+    sqs = boto3.resource('sqs', region_name=config.get('info', 'region_name'))
     taskQueue = sqs.get_queue_by_name(QueueName='ilastik-task-queue')
     finishedQueue = sqs.get_queue_by_name(QueueName='ilastik-finished-queue')
 
-    # set up S3 connection, the signature_version needs to be adjusted for eu-central-1 !
+    # set up S3 connection
+    # WARNING: the signature_version needs to be adjusted for eu-central-1, no idea whether that also works for us
     s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
 
     try:
@@ -36,16 +37,19 @@ if __name__ == "__main__":
                 # get rid of spaces in filename 
                 filename = (message.body).replace(' ', '')
                 print("Got {}, for project {} and file key {}, downloading...".format(filename, ilastikProjectKey, inputFileKey))
+                
+                # download ilasik project
                 try:
-                    s3.download_file("chauboldtestbucket", ilastikProjectKey, "ilastikproject.zip")
+                    s3.download_file(bucketName, ilastikProjectKey, "ilastikproject.zip")
                 except botocore.exceptions.ClientError:
                     print("Could not find ilastik project download")
                     message.delete()
                     continue
-
+                
+                # download raw data file
                 try:
-                    s3.download_file("chauboldtestbucket", inputFileKey, filename)
-                    s3.delete_object(Bucket='chauboldtestbucket', Key=inputFileKey)
+                    s3.download_file(bucketName, inputFileKey, filename)
+                    s3.delete_object(Bucket=bucketName, Key=inputFileKey)
                 except botocore.exceptions.ClientError:
                     print("Could not find raw data file to download")
                     message.delete()
@@ -60,15 +64,14 @@ if __name__ == "__main__":
 
                 # run shell command
                 my_env = os.environ.copy()
-                my_env["LAZYFLOW_TOTAL_RAM_MB"] = "950"
+                my_env["LAZYFLOW_TOTAL_RAM_MB"] = config.get('info', 'maxRam')
                 command = "{}/run_ilastik.sh --headless --project=ilastikproject.ilp --output_filename_format=result.h5 {}".format(ilastikPath, filename)
                 print("Running " + command)
                 subprocess.check_call(command.split(' '), env=my_env)
 
+                # upload result
                 outputFileKey = inputFileKey + '_result'
-                # s3.upload_file('result.h5', 'chauboldtestbucket', outputFileKey)
-                print("Simulating processing")
-                time.sleep(2)
+                s3.upload_file('result.h5', bucketName, outputFileKey)
 
                 # clean up
                 os.remove('ilastikproject.zip')
