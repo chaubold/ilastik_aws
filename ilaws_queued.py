@@ -11,10 +11,10 @@ import time
 def main():
     if len(sys.argv) < 3:
         print "-------------------------------------------------------------"
-        print "ilaws -- a wrapper for AWS for launching ilastik segmentation on the cloud"
-        print "usage: python ilaws.py <path to directory with input data> <path to ilastik project file>"
-        print "written by michael morehead @ ilastik workshop 2016"
-        print "Adjusted to use SQS by Carsten Haubold, 2016 "
+        print "ilaws -- a wrapper for AWS for launching ilastik segmentation on the cloud\n"
+        print "USAGE: python ilaws_queued.py <path to directory with input data> <path to ilastik project file>\n"
+        print "Originally by michael morehead @ ilastik workshop 2016,"
+        print "Adjusted to use Amazon's SQS and S3 by Carsten Haubold, 2016"
         print "-------------------------------------------------------------"
         sys.exit()
     folderPath = sys.argv[1]
@@ -98,15 +98,15 @@ def main():
                 filename = message.body
                 print("Got result for {} = {}, downloading...".format(message.body, inputFileKey))
 
-                # # download file and remove from s3
-                # try:
-                #     s3.download_file(bucketName, resultFileKey, 'result_' + filename)
-                #     s3.delete_object(Bucket=bucketName, Key=resultFileKey)
-                #     message.delete()
-                # except botocore.exceptions.ClientError:
-                #     print("Could not find result file {} to download".format(filename))
-                #     message.delete()
-                #     continue
+                # download file and remove from s3
+                try:
+                    s3.download_file(bucketName, resultFileKey, 'result_' + filename)
+                    s3.delete_object(Bucket=bucketName, Key=resultFileKey)
+                    message.delete()
+                except botocore.exceptions.ClientError:
+                    print("Could not find result file {} to download".format(filename))
+                    message.delete()
+                    continue
 
                 assert(inputFileKey in remainingKeys)
                 remainingKeys.remove(inputFileKey)
@@ -114,7 +114,14 @@ def main():
     except KeyboardInterrupt:
         print("WARNING: not all results have been fetched yet, but will still be computed, and the results will be stored in S3")
     
-    print("Done!")
+    
+    try:
+        print("Deleting ilastik project file on server")
+        s3.delete_object(Bucket=bucketName, Key="ilastik-project-zip")
+    except botocore.exceptions.ClientError:
+        print("Could not delete ilastik project file from S3")
+
+    print("\n*********************\nDone!\n*********************\n")
 
 if __name__ == "__main__":
     main()

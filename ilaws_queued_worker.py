@@ -12,6 +12,7 @@ if __name__ == "__main__":
     config = ConfigParser.ConfigParser()
     config.read("./config.ini")
     ilastikPath = config.get('info', 'ilastikPath')
+    assert(ilastikPath.count(' ') == 0)
     bucketName = config.get('info', 'bucket')
 
     # set up queues
@@ -31,9 +32,10 @@ if __name__ == "__main__":
                     inputFileKey = message.message_attributes.get('file-key').get('StringValue')
                 else:
                     print("Got unknown message {}".format(message))
-
-                filename = message.body
-                print("Got {}, for project {} and file key {}, downloading...".format(message.body, ilastikProjectKey, inputFileKey))
+                
+                # get rid of spaces in filename 
+                filename = (message.body).replace(' ', '')
+                print("Got {}, for project {} and file key {}, downloading...".format(filename, ilastikProjectKey, inputFileKey))
                 try:
                     s3.download_file("chauboldtestbucket", ilastikProjectKey, "ilastikproject.zip")
                 except botocore.exceptions.ClientError:
@@ -57,12 +59,22 @@ if __name__ == "__main__":
                     os.rename(originalFileName, 'ilastikproject.ilp')
 
                 # run shell command
-                # subprocess.check_call("export LAZYFLOW_TOTAL_RAM_MB=950; {}/run_ilastik.sh --headless --project=ilastikproject.ilp {}".format(ilastikPath, filename))
+                my_env = os.environ.copy()
+                my_env["LAZYFLOW_TOTAL_RAM_MB"] = "950"
+                command = "{}/run_ilastik.sh --headless --project=ilastikproject.ilp --output_filename_format=result.h5 {}".format(ilastikPath, filename)
+                print("Running " + command)
+                subprocess.check_call(command.split(' '), env=my_env)
 
                 outputFileKey = inputFileKey + '_result'
                 # s3.upload_file('result.h5', 'chauboldtestbucket', outputFileKey)
                 print("Simulating processing")
                 time.sleep(2)
+
+                # clean up
+                os.remove('ilastikproject.zip')
+                os.remove('ilastikproject.ilp')
+                os.remove(filename)
+                os.remove('result.h5')
 
                 # Let the queue know that the message is processed
                 message.delete()
