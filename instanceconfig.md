@@ -52,3 +52,4 @@ Here are the steps I took to get access to AWS services from an EC2 instance:
 
 * http://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2.html
 * http://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+* http://docs.aws.amazon.com/cli/latest/userguide/cli-iam-policy.html
