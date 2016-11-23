@@ -23,6 +23,7 @@ if __name__ == "__main__":
     # set up S3 connection
     # WARNING: the signature_version needs to be adjusted for eu-central-1, no idea whether that also works for us
     s3 = boto3.client('s3', config=Config(signature_version='s3v4'))
+    print("ilastik worker running, waiting for jobs...")
 
     try:
         while True:
@@ -67,7 +68,11 @@ if __name__ == "__main__":
                 my_env["LAZYFLOW_TOTAL_RAM_MB"] = config.get('info', 'maxRam')
                 command = "{}/run_ilastik.sh --headless --project=ilastikproject.ilp --output_filename_format=result.h5 {}".format(ilastikPath, filename)
                 print("Running " + command)
-                subprocess.check_call(command.split(' '), env=my_env)
+                
+                try:
+                    subprocess.check_call(command.split(' '), env=my_env)
+                except:
+                    print("running ilastik failed... sending back the log file")
 
                 # upload result
                 if os.path.isfile('result.h5'):
