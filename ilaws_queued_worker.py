@@ -33,11 +33,11 @@ if __name__ == "__main__":
                     inputFileKey = message.message_attributes.get('file-key').get('StringValue')
                 else:
                     print("Got unknown message {}".format(message))
-                
-                # get rid of spaces in filename 
+
+                # get rid of spaces in filename
                 filename = (message.body).replace(' ', '')
                 print("Got {}, for project {} and file key {}, downloading...".format(filename, ilastikProjectKey, inputFileKey))
-                
+
                 # download ilasik project
                 try:
                     s3.download_file(bucketName, ilastikProjectKey, "ilastikproject.zip")
@@ -45,7 +45,7 @@ if __name__ == "__main__":
                     print("Could not find ilastik project download")
                     message.delete()
                     continue
-                
+
                 # download raw data file
                 try:
                     s3.download_file(bucketName, inputFileKey, filename)
@@ -70,14 +70,22 @@ if __name__ == "__main__":
                 subprocess.check_call(command.split(' '), env=my_env)
 
                 # upload result
-                outputFileKey = inputFileKey + '_result'
-                s3.upload_file('result.h5', bucketName, outputFileKey)
+                if os.path.isfile('result.h5'):
+                    outputFileKey = inputFileKey + '_result'
+                    s3.upload_file('result.h5', bucketName, outputFileKey)
+                    os.remove('result.h5')
+                else:
+                    outputFileKey = 'ERROR'
+
+                # upload ilastik log file
+                logFileKey = inputFileKey + '_log'
+                s3.upload_file('ilastik_log.txt', bucketName, logFileKey)
 
                 # clean up
                 os.remove('ilastikproject.zip')
                 os.remove('ilastikproject.ilp')
                 os.remove(filename)
-                os.remove('result.h5')
+                os.remove('ilastik_log.txt')
 
                 # Let the queue know that the message is processed
                 message.delete()
@@ -91,6 +99,10 @@ if __name__ == "__main__":
                     },
                     'result-key': {
                         'StringValue':outputFileKey,
+                        'DataType': 'String'
+                    },
+                    'log-key': {
+                        'StringValue':logFileKey,
                         'DataType': 'String'
                     }
                 })

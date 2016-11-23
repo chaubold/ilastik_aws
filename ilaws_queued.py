@@ -93,6 +93,7 @@ def main():
                 if message.message_attributes is not None:
                     resultFileKey = message.message_attributes.get('result-key').get('StringValue')
                     inputFileKey = message.message_attributes.get('file-key').get('StringValue')
+                    logFileKey = message.message_attributes.get('log-key').get('StringValue')
                 else:
                     print("Got unknown message {}".format(message))
 
@@ -101,8 +102,13 @@ def main():
 
                 # download file and remove from s3
                 try:
-                    s3.download_file(bucketName, resultFileKey, os.path.join(folderPath, 'result_' + filename))
-                    s3.delete_object(Bucket=bucketName, Key=resultFileKey)
+                    if resultFileKey != 'ERROR':
+                        s3.download_file(bucketName, resultFileKey, os.path.join(folderPath, 'result_' + filename))
+                        s3.delete_object(Bucket=bucketName, Key=resultFileKey)
+                    else:
+                        print("Input file {} finished with errors, see the log file".format(filename))
+                    s3.download_file(bucketName, logFileKey, os.path.join(folderPath, 'log_' + filename + '.txt'))
+                    s3.delete_object(Bucket=bucketName, Key=logFileKey)
                     message.delete()
                 except botocore.exceptions.ClientError:
                     print("Could not find result file {} to download".format(filename))
