@@ -88,7 +88,7 @@ def main():
     try:
         print("Waiting for results")
         while len(remainingKeys) > 0:
-            for message in finishedQueue.receive_messages(MessageAttributeNames=['result-key', 'file-key'], MaxNumberOfMessages=1):
+            for message in finishedQueue.receive_messages(MessageAttributeNames=['result-key', 'file-key', 'log-key'], MaxNumberOfMessages=1):
                 # Get the custom author message attribute if it was set
                 if message.message_attributes is not None:
                     resultFileKey = message.message_attributes.get('result-key').get('StringValue')
